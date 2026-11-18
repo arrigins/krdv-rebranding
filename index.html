@@ -351,7 +351,7 @@ if (typeof module !== 'undefined') module.exports = {};
 
 </script>
 <script>
-/* КРДВ — колода «Фирменный стиль КРДВ. Концепции ребрендинга», итерация 7. Требует marks.js.
+/* КРДВ — колода «Фирменный стиль КРДВ. Концепции ребрендинга», итерация 9 (публичная: ЕТОР только в 02). Требует marks.js.
    Знаки берутся только через функции marks.js (M1, E1, M2, M3…, M5): их подменят новыми знаками без правки раскладок.
    Слайды с вариантами (VARS) листаются стрелками по бокам; в печати выводятся все варианты подряд. */
 (function () {
@@ -501,7 +501,7 @@ function c1() {
   /* графика: крупный паттерн со сменой палитры */
   out.push(slide(p.navy, p.snow, BLEED(0, 0, 100, 56.25, `<div class="pat pal-cycle" style="height:100%">${SVG('0 0 1000 562', markPattern(1000, 562, 104, { anim: true }), fit)}</div>`), { label: L, pg: false }));
   out.push(doSlide(L, '#fff', p.navy, mC, p.navy, mW, '#fff'));
-  out.push(etorSlide(L, p.snow, p.navy, E1(p.cobalt, p.mint), E1('#fff', p.mint), p.cobalt));
+  /* ЕТОР убран в итерации 9: в колоде остаётся только ЕТОР концепции 02 */
   /* носители: бизнес и Арктика — статика; слоганы без «опоры» (опора — в графике) */
   const H1 = A(0, 0, 100, 100, SVG('0 0 1000 640', grow(1000, 640, 870, 300, 6.4, 22, 330, p.cobalt, p.cobalt, p.mint, { halo: [380, 320] }), fit)) +
     bnH(LK.short(mC, '5.6cqw', p.navy), 'Ваше дело', 'новые возможности', 'Поддержка инвесторов<br>на Дальнем Востоке и в Арктике', { top: 34, w: 46, fs: '6.4cqw', ct: 80, cw: 46 });
@@ -584,7 +584,7 @@ function c3() {
   out.push(slide('#fff', p.night,
     title('Дочерние общества', 'Солнце тем выше, чем восточнее часовой пояс', 0, 7) +
     B(7, 0, 5, null, `<div style="display:flex;justify-content:flex-end;padding-top:.3cqw">${LK.cyc(mL, '2.2cqw', p.night)}</div>`) + zs, { label: L }));
-  out.push(etorSlide(L, p.frost, p.night, M3etor(), M3etor(), p.night));
+  /* ЕТОР убран в итерации 9: в колоде остаётся только ЕТОР концепции 02 */
   /* носители: фото, бизнес (монохром), Арктика (градиент) — четыре варианта раскладки */
   const photo = (pos = '62% 50%', fs = 7.4, top = 44, short) => `<img src="${PH('vladivostok')}" alt="" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover;object-position:${pos}"><div class="abs" style="inset:0;background:linear-gradient(90deg,rgba(11,19,48,.72) 0%,rgba(11,19,48,.3) 52%,rgba(11,19,48,0) 72%)"></div>` +
     A(7, 8, 50, null, LK.short(mW, `${f2(fs * .68)}cqw`, '#fff')) + A(7, top, 86, null, `<p class="bh" style="font-weight:400;color:#fff;font-size:${fs}cqw">Встречайте рассвет</p><p class="bh ser" style="color:#fff;font-size:${fs}cqw">${short ? 'первыми на Дальнем Востоке' : 'первыми на Дальнем<br>Востоке'}</p>`) + A(7, 87, 70, null, `<p class="bc" style="color:#fff;font-size:${f2(fs * .38)}cqw">Владивосток</p>`);
@@ -629,7 +629,7 @@ function c4() {
     `<div class="abs" style="left:0;top:0;width:100%;height:40%;background:linear-gradient(180deg,${p.night} 55%,rgba(11,18,51,0))"></div><div class="abs" style="left:0;bottom:0;width:100%;height:14%;background:linear-gradient(0deg,${p.night} 35%,rgba(11,18,51,0))"></div>` +
     B(0, 0, 6, null, `<p class="h2">Графика: поле роста</p><p class="lead" style="margin-top:1.1cqw;opacity:.85">Ровная сетка точек. Проект запускает рост вокруг себя: размер точек меняется по той же шкале, что и в знаке</p>`), { label: L, pgc: '#fff' }));
   out.push(doSlide(L, '#fff', p.night, mN, p.night, mW, '#fff'));
-  out.push(etorSlide(L, snow, p.night, mE, M5('#fff', p.coral, '', { all: true }), p.night));
+  /* ЕТОР убран в итерации 9: в колоде остаётся только ЕТОР концепции 02 */
   /* носители 1: фото, собранное из точек роста (полутон по шкале знака), и кобальтовая вертикаль */
   const H1 = A(46, 0, 54, 100, htf({ img: 'teriberka', W: 540, H: 640, step: 20, ink: '#fff', acc: p.coral, fx: .6, fy: .4, dim: .22 })) +
     bnH(LK.short(mW, '4.6cqw', '#fff'), 'Арктика', 'место для роста', 'Работа и жизнь на Севере', { w: 48, fs: '6cqw' });
