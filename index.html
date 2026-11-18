@@ -135,6 +135,9 @@ html,body{margin:0;background:var(--page);font-family:var(--n)}
 .etb2{animation:etsw 6s ease-in-out infinite}
 @keyframes etsw{0%,38%{opacity:0}50%,88%{opacity:1}100%{opacity:0}}
 .a-dawn{animation:dawn 9.6s ease-in-out infinite alternate}
+/* 04: шаги знака выходят из-за точки на запад и возвращаются */
+.a-stk .st{animation:stk 4.8s cubic-bezier(.65,0,.25,1) infinite;animation-delay:calc(var(--o) * 150ms)}
+@keyframes stk{0%,10%{transform:translateX(var(--dx))}40%,84%{transform:none}96%,100%{transform:translateX(var(--dx))}}
 @keyframes dawn{0%{transform:translateY(0)}100%{transform:translateY(-22%)}}
 @media (prefers-reduced-motion:reduce){*,*::before,*::after{animation:none!important}}
 @media print{
@@ -259,21 +262,28 @@ function nested(W, H, cx, cy, t, gap, count, cols, o = {}) { let s = ''; for (le
 
 /* ================= 03 ВОСХОД ================= */
 const P3 = { night: '#0B1330', indigo: '#1F2E6B', blue: '#4E6CC0', sky: '#BBD0EC', dawn: '#FFE7C2', amber: '#FFA24A', sun: '#FF8126', frost: '#F3F5F7' };
-/* Знак «Восход»: солнце из 11 полос — 11 часовых поясов. Чем восточнее пояс, тем выше поднялось солнце. */
-const ZONES = 11;
+/* Знак «Восход» (итерация 10, вариант Б): солнце из 18 полос — 18 регионов Дальнего Востока и Арктики.
+   Низ полос идёт по диагонали ~29°: чем восточнее полоса, тем выше поднялось солнце.
+   Адаптивный: в малых размерах 18 → 9 → 6 → 4 → 3 полосы. Западная полоса начинается там,
+   где она видна хотя бы на две свои ширины (без клина). Задержка анимации — восток раньше запада. */
+const ZONES = 18, SUNP = { y0: 45, s: .55, auto: 2 };
+const sunGeo = n => {
+  const g = n > 12 ? 1.1 : n > 6 ? 1.6 : 2.4, b = x => SUNP.y0 + SUNP.s * x, yTop = x => 50 - Math.sqrt(Math.max(0, 2500 - (x - 50) ** 2));
+  let xs = 0; for (; xs < 30; xs += .05) { const w = (100 - xs - g * (n - 1)) / n; if (b(xs + w / 2) - yTop(xs) >= SUNP.auto * w) break }
+  const w = (100 - xs - g * (n - 1)) / n;
+  return [...Array(n)].map((_, k) => { const x = xs + k * (w + g); return { x, w, h: Math.min(100, b(x + w / 2)), e: n - 1 - k } });
+};
 const sunBars = (o = {}) => {
-  const n = ZONES, g = o.gap ?? 1.5, w = (100 - g * (n - 1)) / n, clip = uid('s'); let s = '';
-  for (let k = 0; k < n; k++) {
-    const x = k * (w + g), top = 0, bot = o.full ? 100 : (o.low ?? 34) + k * ((100 - (o.low ?? 34)) / (n - 1));
+  const n = o.n || ZONES, clip = uid('s'); let s = '';
+  sunGeo(n).forEach((d, k) => {
     const c = typeof o.col === 'function' ? o.col(k) : (o.col || '#000');
-    s += `<rect x="${K(x)}" y="${K(top)}" width="${K(w)}" height="${K(bot - top)}" fill="${c}"/>`;
-    if (o.ghost && !o.full && 100 - bot - g > 0) s += `<rect x="${K(x)}" y="${K(bot + g)}" width="${K(w)}" height="${K(100 - bot - g)}" fill="${o.ghost}"/>`;
-  }
+    s += `<rect x="${K(d.x)}" y="0" width="${K(d.w)}" height="${K(o.full ? 100 : d.h)}" fill="${c}" style="animation-delay:${K(.1 + d.e / Math.max(1, n - 1))}s"/>`;
+  });
   return `<defs><clipPath id="${clip}"><circle cx="50" cy="50" r="50"/></clipPath></defs><g clip-path="url(#${clip})">${s}</g>`;
 };
 const DAY = ['#0B1330', '#152150', '#1F2E6B', '#304592', '#4E6CC0', '#86A3DA', '#BBD0EC', '#FFE7C2', '#FFC680', '#FFA24A', '#FF8126'];
 const M3 = (o = {}, ex = '') => SVG('0 0 100 100', sunBars(o), ex);
-const M3main = (c = P3.sun, ex = '') => M3({ col: c }, ex);
+const M3main = (c = P3.sun, ex = '', n = ZONES) => M3({ col: c, n }, ex);
 const M3day = (ex = '') => M3({ full: true, col: k => DAY[k] }, ex);
 const M3zone = (z, ink = P3.night, lit = P3.sun, ex = '') => M3({ full: true, col: k => k === z ? lit : ink }, ex);
 const SKY = (ang = 'at 100% 100%', sz = '150% 120%') => `radial-gradient(${sz} ${ang},#FFF4DD 0%,#FFD49A 7%,#FFA24A 15%,#FF8126 19%,#FFE7C2 19.6%,#BBD0EC 30%,#4E6CC0 48%,#1F2E6B 70%,#0B1330 92%)`;
@@ -298,10 +308,23 @@ const M4r = (dots, center, ex = '', o = {}) => { const cols = typeof dots === 's
 
 /* ================= 04 ТОЧКИ РОСТА ================= */
 const P5 = { night: '#0B1233', white: '#FFFFFF', mist: '#EEF1F6', sky: '#47C7F0', cobalt: '#2A4BF0', sprout: '#17C27A', coral: '#FF5B45', violet: '#8B5CF6', amber: '#FFB524' };
-/* Знак: сетка 3×3, размер точки растёт к северо-востоку по шкале из пяти ступеней */
+/* Знак (итерация 10): «пустая точка» — три круга одного радиуса идут с запада на восток.
+   Передний круг залит; средний — левая половина круга; дальний срезан на 0,45R левее центра и лежит под средним.
+   Пропорции сняты по эскизу Арины: сдвиги центров 0,63R и 0,39R. Классы st/fr — для анимации на слайде идеи.
+   M5(front, acc): front — цвет переднего круга; если front === acc — монохромная версия (шаги тоном того же цвета). */
 const RS5 = [5, 7.5, 10, 12.5, 15];
 const G5 = (() => { const a = []; for (let j = 0; j < 3; j++) for (let i = 0; i < 3; i++) a.push({ x: 18 + i * 32, y: 82 - j * 32, k: i + j, i, j }); return a })();
-const M5 = (ink, acc, ex = '', o = {}) => SVG('0 0 100 100', G5.map(d => `<circle cx="${d.x}" cy="${d.y}" r="${o.all ? 15 : RS5[d.k]}" fill="${(o.all ? true : d.k === 4) ? acc : ink}"/>`).join(''), ex);
+const T4 = (() => { const R = 40, FX = 100, FY = 50, MIDC = FX - .63 * R, FARC = MIDC - .39 * R; return { R, FX, FY, MIDC, FARC, FARCUT: FARC - .45 * R, VB: `${K(FARC - R - .6)} ${FY - R - .6} ${K(FX + R - (FARC - R) + 1.2)} ${2 * R + 1.2}` } })();
+const STEP4 = { far: '#BAD3FF', mid: '#2741E0' };
+const M5 = (front, acc, ex = '') => {
+  const { R, FX, FY, MIDC, FARC, FARCUT, VB } = T4, id = uid('t'), mono = front === acc;
+  const far = mono ? front : STEP4.far, mid = mono ? front : STEP4.mid;
+  /* в монохроме шаги полупрозрачные, поэтому перекрытия вырезаются масками — без двойного тона */
+  const defs = `<defs><clipPath id="${id}f"><rect x="0" y="0" width="${K(FARCUT)}" height="100"/></clipPath><clipPath id="${id}m"><rect x="0" y="0" width="${K(MIDC)}" height="100"/></clipPath>` +
+    (mono ? `<mask id="${id}a"><rect x="0" y="0" width="200" height="100" fill="#fff"/><circle cx="${K(MIDC)}" cy="${FY}" r="${R}" fill="#000"/></mask><mask id="${id}b"><rect x="0" y="0" width="200" height="100" fill="#fff"/><circle cx="${FX}" cy="${FY}" r="${R}" fill="#000"/></mask>` : '') + '</defs>';
+  const g = (cx, col, clip, mask, op, o) => `<g class="st" style="--dx:${K(FX - cx)}px;--o:${o}"${mask ? ` mask="url(#${mask})"` : ''}><circle cx="${K(cx)}" cy="${FY}" r="${R}" fill="${col}" clip-path="url(#${clip})"${op < 1 ? ` opacity="${op}"` : ''}/></g>`;
+  return SVG(VB, defs + g(FARC, far, id + 'f', mono && id + 'a', mono ? .3 : 1, 1) + g(MIDC, mid, id + 'm', mono && id + 'b', mono ? .6 : 1, 0) + `<circle class="fr" cx="${FX}" cy="${FY}" r="${R}" fill="${front}"/>`, ex);
+};
 /* Кадр хореографии: 1 точка → 3 → 9 → рост → поле. t в секундах, цикл 7.2 с */
 const ease3 = t => t < .5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2, clamp = (v, a = 0, b = 1) => Math.max(a, Math.min(b, v)), sg = (t, a, b) => ease3(clamp((t - a) / (b - a)));
 function chorFrame(t, W, H, S, ink, acc, o = {}) {
@@ -555,13 +578,15 @@ const M3etor = (ex = '') => M3({ col: k => DAYL[k] }, ex);
 function c3() {
   const p = P3, L = '03 | Восход', out = [];
   const mL = M3main(p.sun), mW = M3main('#fff'), mD = M3main(p.amber);
+  /* адаптивный знак: от 80 px — 18 полос, около 30–35 px — 6, около 20–26 px — 4 */
+  const s6 = M3main(p.sun, '', 6), w6 = M3main('#fff', '', 6), s4 = M3main(p.sun, '', 4), w4 = M3main('#fff', '', 4);
   out.push(slide(p.night, p.frost,
     `<div class="abs a-sky" style="inset:-10% 0 0 0;background:${SKY2('at 82% 112%', '120% 90%')}"></div><div class="gr"></div>` +
     B(0, 0, 4, null, kick('Концепция 03')) +
     B(0, 1.55, 7, null, `<p class="h1" style="font-weight:300">Восход</p><p class="lead" style="margin-top:1.6cqw;font-size:2.1cqw;opacity:.92">День в России начинается<br>на Дальнем Востоке</p>`), { pg: false, id: 'c3' }));
   out.push(slide(p.frost, p.night,
     title('Идея знака') +
-    B(0, 1.5, 4, null, `<p class="h3">Солнце${sep}новый день</p><p class="p" style="margin-top:.6cqw">Первыми его видят Камчатка и Чукотка</p><p class="h3" style="margin-top:2.4cqw">11 полос${sep}11 часовых поясов России</p><p class="p" style="margin-top:.6cqw">От Калининграда до Чукотки. Восточный<br>край шкалы — Дальний Восток: здесь<br>страна встречает новый день</p>`) +
+    B(0, 1.5, 4, null, `<p class="h3">Солнце${sep}новый день</p><p class="p" style="margin-top:.6cqw">Первыми его видят Камчатка и Чукотка</p><p class="h3" style="margin-top:2.4cqw">18 полос${sep}18 регионов</p><p class="p" style="margin-top:.6cqw">Дальний Восток и Арктика. Чем восточнее<br>полоса, тем выше поднялось солнце.<br>В малых размерах полос меньше: 9, 6, 4 или 3</p>`) +
     B(5, 0, 7, 6, `<div style="height:100%;background:#fff;border-radius:.6cqw;display:flex;align-items:center;justify-content:center"><div style="width:40%" class="a-bars">${mL.replace('<svg ', '<svg width="100%" ')}</div></div>`), { label: L }));
   out.push(logoPair(L, p.frost, p.night, mL, mD, p.night, p.frost));
   out.push(palette(p.frost, p.night, L, [['Полярная ночь', p.night, 'Текст, ночное небо'], ['Сумерки', p.indigo, 'Вторичный фон'], ['Утреннее небо', p.sky, 'Переходы'], ['Заря', p.dawn, 'Тёплые фоны', 1], ['Восход', p.sun, 'Солнце, акцент'], ['Иней', p.frost, 'Основной фон', 1]], 'Палитра — время суток: от полярной ночи до восхода',
@@ -573,7 +598,7 @@ function c3() {
     title('Графика: источник света', 'В каждой композиции один источник света. Он приходит с востока и выделяет главное', 0, 6) +
     [['Высота', 'время суток', `<div style="position:absolute;inset:0;background:${SKY2('at 70% 125%', '160% 110%')}"></div>`], ['Сила', 'важность сообщения', `<div style="position:absolute;inset:0;background:${SKY2('at 70% 95%', '220% 170%')}"></div>`], ['Плоская версия', 'печать и малые размеры', flat]]
       .map(([t, c, s], i) => B(i * 2, 2.6, 2, 2, `<div style="position:relative;height:100%;border-radius:.6cqw;overflow:hidden;background:${p.night};margin-right:${GT}cqw">${s}</div>`) + B(i * 2, 4.7, 2, null, `<p class="h3">${t}</p><p class="cap" style="margin-top:.2cqw">${c}</p>`)).join('') +
-    B(6, 0, 6, 6, `<div style="position:relative;height:100%;border-radius:.6cqw;overflow:hidden;background:${p.night};container-type:inline-size"><div class="abs a-dawn" style="left:0;right:0;top:0;height:135%;background:${SKY2('at 74% 80%', '112% 82%')}"></div><div class="gr"></div><div style="position:absolute;left:8cqw;top:8cqw">${LK.short(mW, '5.4cqw', '#fff')}</div><div style="position:absolute;left:8cqw;right:8cqw;top:30cqw;color:${p.frost}"><p class="msg" style="font-weight:300;font-size:9.6cqw;line-height:1.04;letter-spacing:-.01em">${['Новый день', 'Новый проект', 'Новая работа', 'Новая жизнь'].map((t, i) => `<span style="animation-delay:${i * 2.4}s">${t}</span>`).join('')}</p><p class="ser" style="font-size:9.6cqw;line-height:1.1">начинается здесь</p></div></div>`), { label: L }));
+    B(6, 0, 6, 6, `<div style="position:relative;height:100%;border-radius:.6cqw;overflow:hidden;background:${p.night};container-type:inline-size"><div class="abs a-dawn" style="left:0;right:0;top:0;height:135%;background:${SKY2('at 74% 80%', '112% 82%')}"></div><div class="gr"></div><div style="position:absolute;left:8cqw;top:8cqw">${LK.short(w6, '5.4cqw', '#fff')}</div><div style="position:absolute;left:8cqw;right:8cqw;top:30cqw;color:${p.frost}"><p class="msg" style="font-weight:300;font-size:9.6cqw;line-height:1.04;letter-spacing:-.01em">${['Новый день', 'Новый проект', 'Новая работа', 'Новая жизнь'].map((t, i) => `<span style="animation-delay:${i * 2.4}s">${t}</span>`).join('')}</p><p class="ser" style="font-size:9.6cqw;line-height:1.1">начинается здесь</p></div></div>`), { label: L }));
   /* дочерние общества + часовые пояса */
   const w = (90 - 9 * 1) / 10;
   const zs = DO.map(([r, u], i) => {
@@ -583,16 +608,16 @@ function c3() {
   }).join('');
   out.push(slide('#fff', p.night,
     title('Дочерние общества', 'Солнце тем выше, чем восточнее часовой пояс', 0, 7) +
-    B(7, 0, 5, null, `<div style="display:flex;justify-content:flex-end;padding-top:.3cqw">${LK.cyc(mL, '2.2cqw', p.night)}</div>`) + zs, { label: L }));
+    B(7, 0, 5, null, `<div style="display:flex;justify-content:flex-end;padding-top:.3cqw">${LK.cyc(s6, '2.2cqw', p.night)}</div>`) + zs, { label: L }));
   /* ЕТОР убран в итерации 9: в колоде остаётся только ЕТОР концепции 02 */
   /* носители: фото, бизнес (монохром), Арктика (градиент) — четыре варианта раскладки */
   const photo = (pos = '62% 50%', fs = 7.4, top = 44, short) => `<img src="${PH('vladivostok')}" alt="" style="position:absolute;inset:0;width:100%;height:100%;object-fit:cover;object-position:${pos}"><div class="abs" style="inset:0;background:linear-gradient(90deg,rgba(11,19,48,.72) 0%,rgba(11,19,48,.3) 52%,rgba(11,19,48,0) 72%)"></div>` +
-    A(7, 8, 50, null, LK.short(mW, `${f2(fs * .68)}cqw`, '#fff')) + A(7, top, 86, null, `<p class="bh" style="font-weight:400;color:#fff;font-size:${fs}cqw">Встречайте рассвет</p><p class="bh ser" style="color:#fff;font-size:${fs}cqw">${short ? 'первыми на Дальнем Востоке' : 'первыми на Дальнем<br>Востоке'}</p>`) + A(7, 87, 70, null, `<p class="bc" style="color:#fff;font-size:${f2(fs * .38)}cqw">Владивосток</p>`);
+    A(7, 8, 50, null, LK.short(w6, `${f2(fs * .68)}cqw`, '#fff')) + A(7, top, 86, null, `<p class="bh" style="font-weight:400;color:#fff;font-size:${fs}cqw">Встречайте рассвет</p><p class="bh ser" style="color:#fff;font-size:${fs}cqw">${short ? 'первыми на Дальнем Востоке' : 'первыми на Дальнем<br>Востоке'}</p>`) + A(7, 87, 70, null, `<p class="bc" style="color:#fff;font-size:${f2(fs * .38)}cqw">Владивосток</p>`);
   const mono = () => `<div class="abs" style="left:10%;right:10%;bottom:0">${mL.replace('<svg ', '<svg width="100%" style="display:block" ')}</div>` +
-    bnV(LK.short(mL, '8.4cqw', p.night), 'Будьте первыми', 'на рынках Азии', { st: 'font-weight:400' });
+    bnV(LK.short(s4, '8.4cqw', p.night), 'Будьте первыми', 'на рынках Азии', { st: 'font-weight:400' });
   const polarBg = `<div class="abs" style="inset:0;background:linear-gradient(180deg,#070C22 0%,#0B1330 40%,#1F2E6B 68%,#4E6CC0 83%,#FFC680 93%,#FF8126 100%)"></div>` + A(0, 64, 100, 36, `<div style="height:100%;background:radial-gradient(ellipse 60% 80% at 50% 100%,rgba(255,214,150,.9) 0%,rgba(255,162,74,.5) 38%,rgba(255,129,38,0) 75%)"></div>`) + A(37, 96.6, 26, null, `<div style="aspect-ratio:2/1;border-radius:999px 999px 0 0;background:#FFE3B8"></div>`);
-  const polar = (o = {}) => polarBg + bnV(LK.short(mW, '8.4cqw', '#fff'), 'Полярный рассвет', '11 января в Мурманске', { st: `font-weight:400;color:${p.frost}`, st2: `color:${p.dawn}`, cap: 'Первое солнце после полярной ночи', ...o });
-  const polarH = polarBg + bnH(LK.short(mW, '4.6cqw', '#fff'), 'Полярный рассвет', '11 января в Мурманске', 'Первое солнце после полярной ночи', { fs: '6cqw', w: 70, st: `font-weight:400;color:${p.frost}`, st2: `color:${p.dawn}`, ct: 64, capst: `color:${p.frost}` });
+  const polar = (o = {}) => polarBg + bnV(LK.short(w4, '8.4cqw', '#fff'), 'Полярный рассвет', '11 января в Мурманске', { st: `font-weight:400;color:${p.frost}`, st2: `color:${p.dawn}`, cap: 'Первое солнце после полярной ночи', ...o });
+  const polarH = polarBg + bnH(LK.short(w4, '4.6cqw', '#fff'), 'Полярный рассвет', '11 января в Мурманске', 'Первое солнце после полярной ночи', { fs: '6cqw', w: 70, st: `font-weight:400;color:${p.frost}`, st2: `color:${p.dawn}`, ct: 64, capst: `color:${p.frost}` });
   const sq = (inner, b, f) => `<div class="bn" style="background:${b};color:${f};aspect-ratio:1;height:auto">${inner}</div>`;
   const TT = 'Носители: туризм, бизнес и Арктика';
   out.push(media('#E6E8EC', p.night, TT, L, [[0, 6, photo(), p.night, '#fff'], [6, 3, mono(), p.dawn, p.night], [9, 3, polar(), p.night, '#fff']]));
@@ -601,7 +626,7 @@ function c3() {
 
 /* =================================================================== 04 ТОЧКИ РОСТА */
 function c4() {
-  const p = { ...P5, cobalt: '#2741E0', coral: '#FF5B45', amber: '#FFAE1F', violet: '#6B45E3', ice: '#D9E1F0' };
+  const p = { ...P5, cobalt: '#2741E0', coral: '#FF5B45', amber: '#FFAE1F', violet: '#6B45E3', ice: '#BAD3FF' };
   const L = '04 | Точки роста', out = [], snow = '#F4F5F8';
   const mN = M5(p.night, p.coral), mW = M5('#fff', p.coral), mE = M5(p.night, p.coral, '', { all: true });
   const chor = (o) => `<div class="chor" data-o='${JSON.stringify(o)}' style="position:absolute;inset:0"></div>`;
@@ -614,11 +639,11 @@ function c4() {
     B(0, 1.55, 6, null, `<p class="h1">Точки роста</p><p class="lead" style="margin-top:1.6cqw;font-size:2.1cqw;opacity:.92">Каждый проект — точка,<br>вокруг которой растёт регион</p>`), { pg: false, id: 'c4' }));
   out.push(slide(snow, p.night,
     title('Идея знака') +
-    B(0, 1.5, 4, null, `<p class="h3">Точка${sep}проект</p><p class="p" style="margin-top:.6cqw">Одна точка делится на три, затем на девять: так из проекта растёт система</p><p class="h3" style="margin-top:2.4cqw">Рост${sep}на северо-восток</p><p class="p" style="margin-top:.6cqw">Размер точек нарастает к северо-востоку — туда, где на карте Дальний Восток и Арктика</p>`) +
-    B(5, 0, 7, 6, `<div style="position:relative;height:100%;background:${p.night};border-radius:.6cqw;overflow:hidden">${chor({ W: 700, H: 600, S: 3.2, ink: '#fff', acc: p.coral, loop: true, next: p.night, still: 4.6 })}</div>`), { label: L }));
+    B(0, 1.5, 4, null, `<p class="h3">Точка${sep}проект</p><p class="p" style="margin-top:.6cqw">Залитый круг — проект, с которого начинается рост территории</p><p class="h3" style="margin-top:2.4cqw">Два шага${sep}движение на восток</p><p class="p" style="margin-top:.6cqw">За точкой — путь, который она прошла. Круги идут с запада на восток, к Дальнему Востоку и Арктике</p>`) +
+    B(5, 0, 7, 6, `<div style="position:relative;height:100%;background:${p.night};border-radius:.6cqw;overflow:hidden"><div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center"><div class="a-stk" style="width:58%">${mW.replace('<svg ', '<svg width="100%" style="display:block" ')}</div></div></div>`), { label: L }));
   out.push(logoPair(L, snow, p.night, mN, mW, p.night, '#fff'));
-  const acc = [['Кобальт', p.cobalt, 'Крупные поля, Арктика'], ['Коралл', p.coral, 'Акцент знака'], ['Янтарь', p.amber, 'Тёплые поля'], ['Аметист', p.violet, 'Данные, второй акцент']];
-  const base = [['Ночь', p.night, 'Текст, тёмные фоны'], ['Лёд', p.ice, 'Холодные подложки', 1], ['Туман', p.mist, 'Светлые фоны', 1]];
+  const acc = [['Кобальт', p.cobalt, 'Знак, крупные поля'], ['Коралл', p.coral, 'Акцент графики'], ['Янтарь', p.amber, 'Тёплые поля'], ['Аметист', p.violet, 'Данные, второй акцент']];
+  const base = [['Ночь', p.night, 'Текст, тёмные фоны'], ['Лёд', p.ice, 'Знак, холодные подложки', 1], ['Туман', p.mist, 'Светлые фоны', 1]];
   const dot = (hex, d, edge) => `<svg viewBox="0 0 10 10" style="width:${d}cqw;flex:none;display:block"><circle cx="5" cy="5" r="${edge ? 4.9 : 5}" fill="${hex}" ${edge ? 'stroke="rgba(0,0,0,.12)" stroke-width=".1"' : ''}/></svg>`;
   out.push(slide(snow, p.night,
     title('Палитра', 'Четыре глубоких цвета и спокойная основа. Правило: на одном носителе одно цветовое поле и один акцент', 0, 8) +
@@ -627,14 +652,14 @@ function c4() {
   out.push(slide(p.night, '#fff',
     gf({ W: 1000, H: 562, step: 22, ink: '#fff', acc: p.coral, pts: [{ x: 680, y: 290, s: 250, d: 0, T: 6.5 }, { x: 320, y: 410, s: 190, d: 2.1, T: 6.5 }, { x: 880, y: 440, s: 150, d: 4.2, T: 6.5 }], dim: .32 }) +
     `<div class="abs" style="left:0;top:0;width:100%;height:40%;background:linear-gradient(180deg,${p.night} 55%,rgba(11,18,51,0))"></div><div class="abs" style="left:0;bottom:0;width:100%;height:14%;background:linear-gradient(0deg,${p.night} 35%,rgba(11,18,51,0))"></div>` +
-    B(0, 0, 6, null, `<p class="h2">Графика: поле роста</p><p class="lead" style="margin-top:1.1cqw;opacity:.85">Ровная сетка точек. Проект запускает рост вокруг себя: размер точек меняется по той же шкале, что и в знаке</p>`), { label: L, pgc: '#fff' }));
+    B(0, 0, 6, null, `<p class="h2">Графика: поле роста</p><p class="lead" style="margin-top:1.1cqw;opacity:.85">Ровная сетка точек. Проект запускает рост вокруг себя: точки увеличиваются по шкале из пяти ступеней</p>`), { label: L, pgc: '#fff' }));
   out.push(doSlide(L, '#fff', p.night, mN, p.night, mW, '#fff'));
   /* ЕТОР убран в итерации 9: в колоде остаётся только ЕТОР концепции 02 */
   /* носители 1: фото, собранное из точек роста (полутон по шкале знака), и кобальтовая вертикаль */
   const H1 = A(46, 0, 54, 100, htf({ img: 'teriberka', W: 540, H: 640, step: 20, ink: '#fff', acc: p.coral, fx: .6, fy: .4, dim: .22 })) +
     bnH(LK.short(mW, '4.6cqw', '#fff'), 'Арктика', 'место для роста', 'Работа и жизнь на Севере', { w: 48, fs: '6cqw' });
   const V1 = gf({ W: 400, H: 560, step: 22, ink: '#fff', acc: p.coral, pts: [{ x: 290, y: 420, s: 250 }], dim: .3, st: 1 }) +
-    bnV(LK.short(mW, '8.4cqw', '#fff'), 'Ваш проект', 'в центре роста');
+    bnV(LK.short(M5('#fff', '#fff'), '8.4cqw', '#fff'), 'Ваш проект', 'в центре роста') /* на кобальте — монохромный знак: кобальтовый шаг сливается с фоном */;
   out.push(media('#E7E8EE', p.night, 'Носители: Арктика и бизнес', L, [[0, 8, H1, p.night, '#fff'], [8, 4, V1, p.cobalt, '#fff']]));
   /* носители 2: данные из точек (отчёт) и серия постеров «один цвет — одно поле — одна точка» */
   const VAL = [2, 3, 3, 4, 5, 5, 6, 7, 8];
@@ -653,7 +678,7 @@ function c4() {
 /* =================================================================== СЛОГАНЫ: АУДИТОРИЯ × ВЫГОДА */
 function matrix() {
   const navy = '#0A1A44', fg = '#F4F3EE';
-  const cols = [['01', 'Точка опоры', M1('#fff', P1.mint)], ['02', N2, M2(P2.cloud, '#fff')], ['03', 'Восход', M3main(P3.sun)], ['04', 'Точки роста', M5('#fff', P5.coral)]];
+  const cols = [['01', 'Точка опоры', M1('#fff', P1.mint)], ['02', N2, M2(P2.cloud, '#fff')], ['03', 'Восход', M3main(P3.sun, '', 4)], ['04', 'Точки роста', M5('#fff', P5.coral)]];
   const rows = [['Инвесторам и бизнесу', [['Ваше дело', 'новые возможности'], ['Рынки Азии', 'ближе, чем кажется'], ['Будьте первыми', 'на рынках Азии'], ['Ваш проект', 'в центре роста']]],
     ['Тем, кто ищет работу и дом', [['Работа в Арктике', 'для тех, кто готов к большему'], ['Дом у океана', 'ближе, чем кажется'], ['Новый день', 'у Тихого океана'], ['Арктика', 'место для роста']]],
     ['Путешественникам', [['Арктика и океан', 'шаг за шагом'], ['Арктика', 'ближе, чем кажется'], ['Встречайте рассвет', 'первыми на Дальнем Востоке'], ['Точки на карте,', 'которые стоит увидеть']]]];
