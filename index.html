@@ -257,6 +257,19 @@ function ribbon(pts, t, cols, o = {}) {
   const im = o.img ? `<pattern id="${gid}img" patternUnits="userSpaceOnUse" x="${o.img.x || 0}" y="${o.img.y || 0}" width="${o.img.w}" height="${o.img.h}"><image href="${o.img.href}" width="${o.img.w}" height="${o.img.h}" preserveAspectRatio="xMidYMid slice"/></pattern>` : '';
   return `<defs>${g(1, 0)}${g(-1, 0)}${g(0, 1)}${g(0, -1)}${im}</defs>` + s;
 }
+/* Складка с подъёмом (итерация 10, слайд «Графика: складка»): длина ленты постоянна.
+   f[i] — насколько поднят i-й вертикальный участок: 0 — лента лежит прямо, 1 — сгиб как в статике.
+   Неподнятая часть уходит в горизонталь после сгиба, поэтому с каждым сгибом конец ленты ближе. */
+function riseBuild(base, f = {}) {
+  const out = [base[0].slice()]; let x = base[0][0], y = base[0][1], carry = 0;
+  const pushH = nx => { const n = out.length; if (n >= 2 && out[n - 1][1] === out[n - 2][1]) out[n - 1][0] = nx; else out.push([nx, y]) };
+  for (let i = 0; i < base.length - 1; i++) {
+    const dx = base[i + 1][0] - base[i][0], dy = base[i + 1][1] - base[i][1];
+    if (dy === 0) { x += dx + carry; carry = 0; pushH(x) }
+    else { const ff = f[i] ?? 1, r = dy * ff; carry += Math.abs(dy) * (1 - ff); if (Math.abs(r) > .6) { y += r; out.push([x, y]) } }
+  }
+  return out;
+}
 /* Вложенные складки: несколько лент сгибаются по одной диагонали — «приближение» к северо-восточному углу */
 function nested(W, H, cx, cy, t, gap, count, cols, o = {}) { let s = ''; for (let i = 0; i < count; i++) { const off = i * (t + gap); s += ribbon([[-t * 3, cy + off], [cx + off, cy + off], [cx + off, -t * 3]], t, o.colsFn ? o.colsFn(i) : cols, { cut: 'square' }) } return s }
 
@@ -545,6 +558,8 @@ const fold3d = (east, north, back, o = {}) => {
   return `<div class="f3 ${o.cls || ''}"><svg viewBox="0 0 100 100" class="f3e"><path d="${p.east}" fill="${east}"/></svg>
   <div class="f3w"><svg viewBox="0 0 100 100" class="f3f"><path d="${p.north}" fill="${north}"/><path d="${p.north}" class="f3s" fill="#000"/></svg><svg viewBox="0 0 100 100" class="f3b"><path d="${p.east}" fill="${back}"/></svg></div></div>`;
 };
+/* слайд «Графика: складка»: статика — последний кадр анимации (сгибы поднимаются по очереди, см. живую графику внизу) */
+const FOLD19 = [[-80, 455], [330, 455], [330, 330], [650, 330], [650, 185], [1080, 185]];
 function c2() {
   const p = P2, L = '02 | ' + N2, out = [];
   const mL = M2(p.cloud, p.night), mD = M2(p.cloud, p.ice);
@@ -560,7 +575,7 @@ function c2() {
   out.push(logoPair(L, p.snow, p.night, mL, mD, p.night, p.snow));
   out.push(palette(p.snow, p.night, L, [['Полярная ночь', p.night, 'Текст, тёмные фоны'], ['Морошка', p.cloud, 'Восток: лицевая сторона'], ['Арктика', p.arctic, 'Север: оборот ленты'], ['Лёд', p.ice, 'Холодные фоны', 1], ['Белая ночь', p.snow, 'Основной фон', 1]], 'Тёплая морошка и холодный синий — две стороны ленты: восток и север'));
   out.push(slide(p.night, p.snow,
-    BLEED(0, 0, 100, 56.25, SVG('0 0 1000 562', ribbon([[-80, 455], [330, 455], [330, 330], [650, 330], [650, 185], [1080, 185]], 130, [p.cloud, p.ice, p.cloud, p.ice, p.cloud], { cut: 'square', shade: false }), fit)) +
+    BLEED(0, 0, 100, 56.25, `<div class="fold" data-o='${JSON.stringify({ base: FOLD19, cols: [p.cloud, p.ice] })}' style="position:absolute;inset:0">${SVG('0 0 1000 562', ribbon(FOLD19, 130, [p.cloud, p.ice, p.cloud, p.ice, p.cloud], { cut: 'square', shade: false }), fit)}</div>`) +
     B(0, 0, 5, null, `<p class="h2" style="color:${p.snow}">Графика: складка</p><p class="lead" style="margin-top:1.1cqw;opacity:.85">Лента идёт по сетке и сгибается под 45°. Каждый сгиб сокращает путь</p>`), { label: L, pgc: p.snow }));
   out.push(doSlide(L, '#fff', p.night, mL, p.night, mD, p.snow));
   out.push(etorSlide(L, p.snow, p.night, E2m(p.cloud, p.night, p.arctic), E2m(p.cloud, '#fff', '#7FA0FF'), p.night));
@@ -739,6 +754,19 @@ document.querySelectorAll('.htf').forEach(el => {
     } catch (e) { put(fieldSVG(o.W, o.H, step, [{ x: o.W * .6, y: o.H * .4, s: o.W * .6 }], o.ink, o.acc, { dim: o.dim })) }
   };
   img.src = PH(o.img);
+});
+/* складка: прямая лента, сгибы поднимаются по очереди с запада — каждый сгиб сокращает путь. Цикл 8,4 с, старт при появлении слайда */
+document.querySelectorAll('.fold').forEach(el => {
+  if (PDF || RM) return;
+  const o = JSON.parse(el.dataset.o), svg = el.querySelector('svg'), rise = o.base.slice(0, -1).map((q, i) => o.base[i + 1][1] !== q[1] ? i : -1).filter(i => i >= 0);
+  let t0 = 0, last = -1e9;
+  live.push({ el, f: now => {
+    if (now - last > 400) t0 = now; last = now;
+    const t = ((now - t0) / 1000) % 8.4, f = {};
+    rise.forEach((i, k) => f[i] = t < 6.4 ? sg(t, .7 + k * 1.1, 1.8 + k * 1.1) : 1 - sg(t, 6.6, 7.8));
+    const pts = riseBuild(o.base, f);
+    svg.innerHTML = ribbon(pts, 130, pts.slice(1).map((q, i) => q[1] !== pts[i][1] ? o.cols[1] : o.cols[0]), { cut: 'square', shade: false });
+  } });
 });
 if (!PDF && live.length) {
   const vis = new Set(); const io = new IntersectionObserver(es => es.forEach(e => e.isIntersecting ? vis.add(e.target) : vis.delete(e.target)), { rootMargin: '100px' });
